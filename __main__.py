@@ -51,6 +51,7 @@ def generate_new_json(chain: Chain, data:str) -> Chain:
         content=contexts,
     ))
 
+    print(responses)
     # Add responses to the chain
     chain.add(OpenAIMessage(
         role='assistant',
@@ -91,6 +92,7 @@ def check(context, currJson) -> str:
             The following JSON should have:
                 {
                     "type": "String of the block type",
+                    "name": "String of the block name" #refer to the JSON data for this value,
                     "location": "String of the block location which is found in the context in the libaries section",
                     "parameters": a list of parameters that are found in the documentation for the block type (some may not have parameters so it can be empty but make sure to include the one's are required in the documentation) and make sure to decide on a parameter to use. All I would like is the value you decide to use for the parameter and nothing else. (e.g. "parameters": [{"Port": "'1' (default) | real integer in quotes"}] is not correct since the value should only be 1 or a real integer)
                 }                

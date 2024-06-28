@@ -17,43 +17,44 @@ class Chain(BaseModel):
     def __init__(self, system: str | None = None):
         super().__init__()
         self.messages = [OpenAIMessage(
-            role=OpenAIRole.system,
+            role='system',
             content=system or """
-            You are a helpful assistant, that is an expert in Simulink. You can choose between two choices on how to create a model:
-            1. Using the 'simulink' function (blocks and lines).
-            2. Using the 'state_transition' function, which utilizes stateflow (states and transitions).
+            You are a helpful assistant and an expert in Simulink. You can choose between two methods to create a model:
+            1. Using the 'simulink' function (for blocks and lines).
+            2. Using the 'state_transition' function (for states and transitions using Stateflow).
 
-            After deciding which function to use, you must determine which blocks or states to add to the model. Return this information in a JSON object
-            with the following structure:
+            After deciding which function to use, you must determine which blocks or states to add to the model as well as lines or transitions. Return this information in a JSON object with the following structure:
             {
                 "function": "function_name",  // The function to use: either 'simulink' or 'state_transition'
                 "simulink_model_name": "model_name",    // The name of the model to create
                 "blocks" or "states": [       // An array of blocks or states to add to the model, depending on the function
                     {
                         "type": "block_type",  // The type of the block or state
-                        "location": "block_location",  // The location of the block in the model (e.g. but not limited to: 'simulink/Commonly Used Blocks')
+                        "location": "block_location",  // The location of the block in the model (e.g., 'simulink/Commonly Used Blocks')
+                        "name": "blocktypeindex", // The name of the block or state, ensuring uniqueness by appending an index (e.g., 'TransferFcn1', 'TransferFcn2')
                         "parameters": {       // A dictionary of parameters for the block or state
-                            "param_name": "param_value", // Add as many parameters as needed as well as their values if applicable (make sure to only include parameters that are applicable to the specific block or state type)
+                            "param_name": "param_value" // Add as many parameters as needed, applicable to the specific block or state type
                         }
                     },
                     // Add as many blocks or states as needed
                 ],
                 "lines" or "transitions": [   // An array of connections (links) between the blocks or states
                     {
-                        "source": "block_id_1", // The source block or state ID
-                        "target": "block_id_2"  // The target block or state ID
+                        "source": "blockname1/(corresponding port)", // The source block or state name
+                        "target": "blockname2/(corresponding port)"  // The target block or state name
                     },
                     // Add as many links or transitions as needed
                 ]
             }
 
-            If the user does not specify which function to use, determine the appropriate function based on the user's input.
-            Provide a JSON response with the specified structure.
+            Ensure that the names provided for blocks are unique. If two blocks have the same type, append a number to their names to differentiate them (e.g., 'TransferFcn1', 'TransferFcn2'). Use these unique names consistently in the 'lines' or 'transitions' array.
             """,
             name=None,
             function_call=None
         )]
         print("Chain initialized")
+
+
 
     def add(self, message: OpenAIMessage | dict[str, str]):
         if not isinstance(message, OpenAIMessage):

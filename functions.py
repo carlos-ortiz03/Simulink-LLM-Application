@@ -1,6 +1,10 @@
 from openai import OpenAI
+import openai
 import matlab.engine
 import ast
+import re
+import glob
+import time
 # from pydantic import BaseModel, Field
 # from doc_agent import simulink_documentation_lookup
 # from openai_function_call import openai_function
@@ -150,7 +154,7 @@ load_dotenv()
 
 def llm(
         chain: Chain,
-        model: str = 'gpt-3.5-turbo-1106',
+        model: str = 'gpt-4o',
         temperature: float = 0.0,
 ) -> OpenAIResponse:
     client = OpenAI()
@@ -172,7 +176,7 @@ def llm(
 
 def checkJson(
         chain: Chain,
-        model: str = 'gpt-4-turbo-2024-04-09',
+        model: str = 'gpt-4o',
         temperature: float = 0.0,
 ) -> OpenAIResponse:
     client = OpenAI()
@@ -192,6 +196,136 @@ def checkJson(
         usage=response['usage'],
     )
 
+
+# def simulink(model_name: str, blocks: list, lines: list):
+#     def parse_value(value):
+#         try:
+#             # Try to evaluate the string to a Python literal
+#             parsed_value = ast.literal_eval(value)
+#             if isinstance(parsed_value, list):
+#                 # If it's a list, convert it to a MATLAB array format as a string
+#                 return f"[{' '.join(map(str, parsed_value))}]"
+#             elif isinstance(parsed_value, (int, float)):
+#                 # If it's a number, return it as a string
+#                 return str(parsed_value)
+#             else:
+#                 # Otherwise, return the evaluated value as a string
+#                 return str(parsed_value)
+#         except (ValueError, SyntaxError):
+#             # If evaluation fails, return the original string
+#             return value
+
+#     try:
+#         # Start MATLAB engine
+#         eng = matlab.engine.start_matlab()
+
+#         # Create a new Simulink model
+#         eng.new_system(model_name)
+#         eng.save_system(model_name)  # Save the new system before making modifications
+
+#         # Add blocks to the model
+#         for block in blocks:
+#             block_type = block["type"]
+#             block_location = block["location"][0].lower() + block["location"][1:] + "/" + block["type"]
+#             block_params = block["parameters"]
+            
+#             # Handling the block name
+#             if isinstance(block_params, dict):
+#                 block_name = block_params.get("Name", f"{block_type}_{blocks.index(block) + 1}")  # Generate a name if not provided
+#             elif isinstance(block_params, list):
+#                 name_dict = next((item for item in block_params if "Name" in item), {})
+#                 block_name = name_dict.get("Name", f"{block_type}_{blocks.index(block) + 1}")
+
+#             # Add block to the model
+#             eng.add_block(f'{block_location}', f'{model_name}/{block_name}')
+
+#             # Set block parameters (commented out)
+#             # if isinstance(block_params, dict):
+#             #     for param, value in block_params.items():
+#             #         if param != "Name":  # 'Name' parameter is used for the block name
+#             #             parsed_value = parse_value(value)
+#             #             print(f"Setting parameter {param} for block {model_name}/{block_name} with value {parsed_value}")
+#             #             eng.set_param(f'{model_name}/{block_name}', param, parsed_value)
+#             # elif isinstance(block_params, list):
+#             #     for param_dict in block_params:
+#             #         for param, value in param_dict.items():
+#             #             if param != "Name":  # 'Name' parameter is used for the block name
+#             #                 parsed_value = parse_value(value)
+#             #                 print(f"Setting parameter {param} for block {model_name}/{block_name} with value {parsed_value}")
+#             #                 eng.set_param(f'{model_name}/{block_name}', param, parsed_value)
+#             print("\n")
+
+#         # Add lines (connections) to the model
+#         for line in lines:
+#             source = line["source"]
+#             target = line["target"]
+#             eng.add_line(model_name, source, target)
+
+#         # Save the model (but do not close it)
+#         eng.save_system(model_name)
+        
+#         print("Simulink model is open. Press Ctrl+C to close and quit.")
+        
+#         # Keep the script running to keep Simulink open
+#         while True:
+#             pass
+
+#     except KeyboardInterrupt:
+#         print("Keyboard interrupt received. Closing Simulink model and quitting.")
+#         # Save and close the model
+#         eng.save_system(model_name)
+#         eng.close_system(model_name, save=True)
+#         # Stop MATLAB engine
+#         eng.quit()
+
+
+
+def delete_existing_files(pattern):
+    files = glob.glob(pattern)
+    for file in files:
+        os.remove(file)
+    print(f"Deleted files: {files}")
+
+def call_chatgpt(m_file_content, error_message):
+    prompt = f"The following MATLAB script has an error:\n\n{m_file_content}\n\nError: {error_message}\n\nPlease provide only the corrected MATLAB script code without any explanation."
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a MATLAB expert."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7
+    )
+
+    print("content: ")
+    print(response.choices[0].message.content)
+    
+    return response.choices[0].message.content
+
+def run_simulink_model(model_name: str):
+    try:
+        # Start MATLAB engine
+        eng = matlab.engine.start_matlab()
+
+        # Run the .m file
+        eng.run(f'{model_name}', nargout=0)
+
+        print(f".m file '{model_name}.m' executed successfully in MATLAB.")
+
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Terminating...")
+            eng.quit()
+            return True
+    except matlab.engine.MatlabExecutionError as matlab_err:
+        error_message = str(matlab_err)
+        print(f"An error occurred while executing the MATLAB script: {error_message}")
+        eng.quit()
+        return error_message
+
 def simulink(model_name: str, blocks: list, lines: list):
     def parse_value(value):
         try:
@@ -210,65 +344,94 @@ def simulink(model_name: str, blocks: list, lines: list):
             # If evaluation fails, return the original string
             return value
 
-    try:
-        # Start MATLAB engine
-        eng = matlab.engine.start_matlab()
+    success = False
+    attempt = 0
 
-        # Create a new Simulink model
-        eng.new_system(model_name)
-        eng.save_system(model_name)  # Save the new system before making modifications
+    while not success and attempt < 5:  # Limit the number of attempts to avoid infinite loops
+        try:
+            # Delete existing .m and .slx files in the directory
+            delete_existing_files('*.m')
+            delete_existing_files('*.slx')
 
-        # Add blocks to the model
-        for block in blocks:
-            block_type = block["type"]
-            block_location = block["location"][0].lower() + block["location"][1:] + "/" + block["type"]
-            block_params = block["parameters"]
+            # Create and open the .m file for writing
+            m_file_content = ""
+            with open(f'{model_name}.m', 'w') as m_file:
+                # Write the MATLAB commands to create and save the new system
+                m_file_content += f"new_system('{model_name}');\n"
+                m_file_content += f"save_system('{model_name}');\n"
+
+                # Add blocks to the model
+                for block in blocks:
+                    block_type = block["type"]
+                    if block_type == 'Inport':
+                        block_location = 'simulink/Sources/In1'
+                        print("Inport block detected. Press Enter to continue...")
+                        input()
+                    elif block_type == 'Outport':
+                        block_location = 'simulink/Sinks/Out1'
+                        print("Outport block detected. Press Enter to continue...")
+                        input()
+                    else:
+                        block_location = block["location"][0].lower() + block["location"][1:] + "/" + block["type"]
+                    block_params = block["parameters"]
+                    block_name = block["name"]
+
+                    # # Handling the block name
+                    # if isinstance(block_params, dict):
+                    #     block_name = block_params.get("Name", f"{block_type}_{blocks.index(block) + 1}")  # Generate a name if not provided
+                    # elif isinstance(block_params, list):
+                    #     name_dict = next((item for item in block_params if "Name" in item), {})
+                    #     block_name = name_dict.get("Name", f"{block_type}_{blocks.index(block) + 1}")
+
+                    # Add block to the model
+                    m_file_content += f"add_block('{block_location}', '{model_name}/{block_name}');\n"
+
+                    # Set block parameters
+                    if isinstance(block_params, dict):
+                        for param, value in block_params.items():
+                            if param != "Name":  # 'Name' parameter is used for the block name
+                                parsed_value = parse_value(value)
+                                m_file_content += f"set_param('{model_name}/{block_name}', '{param}', '{parsed_value}');\n"
+                    elif isinstance(block_params, list):
+                        for param_dict in block_params:
+                            for param, value in param_dict.items():
+                                if param != "Name":  # 'Name' parameter is used for the block name
+                                    parsed_value = parse_value(value)
+                                    m_file_content += f"set_param('{model_name}/{block_name}', '{param}', '{parsed_value}');\n"
+
+                # Add lines (connections) to the model
+                for line in lines:
+                    source = line["source"]
+                    target = line["target"]
+                    m_file_content += f"add_line('{model_name}', '{source}', '{target}');\n"
+
+                # Save the model
+                m_file_content += f"save_system('{model_name}');\n"
+                m_file_content += f"open_system('{model_name}');\n"
+                m_file.write(m_file_content)
+
+            # Print the .m file content before running it
+            print(f"\nGenerated MATLAB script ({model_name}.m):\n")
+            print(m_file_content)
             
-            # Handling the block name
-            if isinstance(block_params, dict):
-                block_name = block_params.get("Name", f"{block_type}_{blocks.index(block) + 1}")  # Generate a name if not provided
-            elif isinstance(block_params, list):
-                name_dict = next((item for item in block_params if "Name" in item), {})
-                block_name = name_dict.get("Name", f"{block_type}_{blocks.index(block) + 1}")
+            print(f"\n.m file '{model_name}.m' created successfully.")
+            
+            # Try running the model
+            result = run_simulink_model(model_name)
+            if result is True:
+                success = True
+            else:
+                attempt += 1
+                print(f"Attempt {attempt}: Fixing script and retrying...")
+                m_file_content = call_chatgpt(m_file_content, result)
+                with open(f'{model_name}.m', 'w') as m_file:
+                    m_file.write(m_file_content)
 
-            # Add block to the model
-            eng.add_block(f'{block_location}', f'{model_name}/{block_name}')
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            break
 
-            # Set block parameters (commented out)
-            # if isinstance(block_params, dict):
-            #     for param, value in block_params.items():
-            #         if param != "Name":  # 'Name' parameter is used for the block name
-            #             parsed_value = parse_value(value)
-            #             print(f"Setting parameter {param} for block {model_name}/{block_name} with value {parsed_value}")
-            #             eng.set_param(f'{model_name}/{block_name}', param, parsed_value)
-            # elif isinstance(block_params, list):
-            #     for param_dict in block_params:
-            #         for param, value in param_dict.items():
-            #             if param != "Name":  # 'Name' parameter is used for the block name
-            #                 parsed_value = parse_value(value)
-            #                 print(f"Setting parameter {param} for block {model_name}/{block_name} with value {parsed_value}")
-            #                 eng.set_param(f'{model_name}/{block_name}', param, parsed_value)
-            print("\n")
-
-        # Add lines (connections) to the model
-        for line in lines:
-            source = line["source"]
-            target = line["target"]
-            eng.add_line(model_name, source, target)
-
-        # Save the model (but do not close it)
-        eng.save_system(model_name)
-        
-        print("Simulink model is open. Press Ctrl+C to close and quit.")
-        
-        # Keep the script running to keep Simulink open
-        while True:
-            pass
-
-    except KeyboardInterrupt:
-        print("Keyboard interrupt received. Closing Simulink model and quitting.")
-        # Save and close the model
-        eng.save_system(model_name)
-        eng.close_system(model_name, save=True)
-        # Stop MATLAB engine
-        eng.quit()
+    if success:
+        print("Model executed successfully.")
+    else:
+        print("Failed to execute the model after several attempts.")

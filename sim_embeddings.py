@@ -25,10 +25,11 @@ class SentenceTransformerEmbeddings:
         with torch.no_grad():
             model_output = self.model(**encoded_input)
         # Perform pooling
-        return self.mean_pooling(
+        pooled_output = self.mean_pooling(
             model_output,
             encoded_input['attention_mask'],
         )
+        return pooled_output
 
     def embed_documents(self, documents: list[str]) -> list[list[float]]:
         return self.embed_fn(documents).tolist()
