@@ -30,6 +30,7 @@ class Chain(BaseModel):
                 "blocks" or "states": [       // An array of blocks or states to add to the model, depending on the function
                     {
                         "type": "block_type",  // The type of the block or state
+                        "description": "block_description",  // A formal complete description (preferably from the mathworks.com website) of the block or state
                         "location": "block_location",  // The location of the block in the model (e.g., 'simulink/Commonly Used Blocks')
                         "name": "blocktypeindex", // The name of the block or state, ensuring uniqueness by appending an index (e.g., 'TransferFcn1', 'TransferFcn2')
                         "parameters": {       // A dictionary of parameters for the block or state

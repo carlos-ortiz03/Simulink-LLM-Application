@@ -34,13 +34,22 @@ def gather_contexts_and_responses(data: str) -> tuple[str, str]:
     responses = []
 
     for i, block in enumerate(data["blocks"], start=1):
-        currContext = Chain.wrap_prompt_in_context(block["type"] + "\n")
+        # Convert the block JSON data to a formatted string
+        block_details = "The block_name: " + block["type"] + "\n" + "The block description: " + block["description"]
+        
+        # Include detailed JSON data in the context
+        currContext = Chain.wrap_prompt_in_context(block_details)
+
         contexts.append(f"Context {i}: {currContext}")
+        
+        # Pass the detailed context to the check function
         json_response = check(currContext, block)
+        
         responses.append(f"Response {i}: {json_response}")
 
     delimiter = "\n---\n"
     return delimiter.join(contexts), delimiter.join(responses)
+
 
 def generate_new_json(chain: Chain, data:str) -> Chain:
     contexts, responses = gather_contexts_and_responses(data)
@@ -81,27 +90,33 @@ def generate_new_json(chain: Chain, data:str) -> Chain:
 
 def check(context, currJson) -> str:
     json_response = openai.chat.completions.create(
-        model="gpt-4-turbo-2024-04-09",
-        messages=[{
-            "role": "assistant",
-            "content": context + "\n" + json.dumps(currJson),
-        },
-        {
-            "role": "system",
-            "content": """Given the most recent context and JSON data, please be prepared to generate a new JSON data based on the context (p.s. the current JSON data may already be right but not certain). 
-            The following JSON should have:
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "assistant",
+                "content": context + "\n" + json.dumps(currJson),
+            },
+            {
+                "role": "system",
+                "content": """Given the most recent context and JSON data, generate a new JSON object based on the context. Ensure the following structure:
                 {
-                    "type": "String of the block type",
-                    "name": "String of the block name" #refer to the JSON data for this value,
-                    "location": "String of the block location which is found in the context in the libaries section",
-                    "parameters": a list of parameters that are found in the documentation for the block type (some may not have parameters so it can be empty but make sure to include the one's are required in the documentation) and make sure to decide on a parameter to use. All I would like is the value you decide to use for the parameter and nothing else. (e.g. "parameters": [{"Port": "'1' (default) | real integer in quotes"}] is not correct since the value should only be 1 or a real integer)
-                }                
-            """
-        },
-        {
-            "role": "user",
-            "content": "Could you generate for me a new JSON?",
-        }],
+                    "type": "String of the block type found in the context in the block_name section",
+                    "name": "String of the block name found in the currJson data. Make sure to only reference 'currJson' and not 'context'",
+                    "location": "String of the block location found in the context in the libraries section",
+                    "parameters": [
+                        {
+                            "param_name": "param_value"
+                        },
+                        ...
+                    ]
+                }
+                Ensure all parameters are provided as a list of dictionaries, even if there's only one parameter. The parameter values should be correctly formatted as required by the documentation."""
+            },
+            {
+                "role": "user",
+                "content": "Could you generate for me a new JSON?",
+            }
+        ],
         response_format={ "type": "json_object" },
     )
     return json_response.choices[0].message.content
