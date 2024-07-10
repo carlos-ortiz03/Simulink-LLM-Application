@@ -14,7 +14,7 @@ def get_embed_fn_and_db():
     if not os.path.exists(EMBEDDING_DIR):
         os.makedirs(EMBEDDING_DIR)
         # Load JSON data
-        with open('data.json', 'r') as file:
+        with open('data/simulink_data.json', 'r') as file:
             data = json.load(file)
         
         # Prepare documents

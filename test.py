@@ -1,7 +1,7 @@
 import json
 
 # Load the JSON file
-json_file_path = './data/simulink_data.json'
+json_file_path = './data/simulink_data_test.json'
 
 with open(json_file_path, 'r') as file:
     data = json.load(file)

@@ -413,3 +413,4 @@ def simulink(model_name: str, blocks: list, lines: list):
     else:
         print("Failed to execute the model after several attempts.")
 
+# see why there's simulink in front of it

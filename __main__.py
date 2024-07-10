@@ -102,7 +102,7 @@ def check(context, currJson) -> str:
                 {
                     "type": "String of the block type found in the context in the block_name section",
                     "name": "String of the block name found in the currJson data. Make sure to only reference 'currJson' and not 'context'",
-                    "location": "String of the block location found in the context in the libraries section",
+                    "location": "String of the block location found in the `context` in the libraries section",
                     "parameters": [
                         {
                             "param_name": "param_value"
@@ -110,7 +110,7 @@ def check(context, currJson) -> str:
                         ...
                     ]
                 }
-                Ensure all parameters are provided as a list of dictionaries, even if there's only one parameter. The parameter values should be correctly formatted as required by the documentation."""
+                Ensure all parameters are provided as a list of dictionaries, even if there is only one parameter. The parameter values should be correctly formatted according to the given context. If currJson contains a parameter that is not in the context, exclude it and adhere strictly to the parameters defined by the context. Additionally, make sure to check the values provided for these parameters and ensure they are valid."""
             },
             {
                 "role": "user",

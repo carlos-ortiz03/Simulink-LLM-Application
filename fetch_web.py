@@ -10,13 +10,8 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Next step: clean the html tags from the parameters
-
-# do however, allow lists to be interpreted as lists through some kind of delimiter or formatting
 
 # in parameters, have parameter descriptions as well
-
-# Look into why they are all 1 parameter
 
 def clean_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
@@ -76,17 +71,22 @@ def extract_block_info(block_url):
 
 def extract_parameters(panel_group):
     parameters = []
-    # Look for the h4 tag with text "Programmatic Use"
-    programmatic_use_header = panel_group.find('h4', text='Programmatic Use')
-    if programmatic_use_header:
-        # Find the first table after this header
-        next_sibling = programmatic_use_header.find_next_sibling()
-        while next_sibling:
-            if next_sibling.name == 'table':
-                rows_html = [str(row) for row in next_sibling.find_all('tr')]
-                parameters.append(rows_html)
-                break
-            next_sibling = next_sibling.find_next_sibling()
+    child_panel_groups = panel_group.find_all('div', class_='panel-group', recursive=False)
+    if child_panel_groups:
+        for child in child_panel_groups:
+            parameters.extend(extract_parameters(child))
+    else:
+        # Look for the h4 tag with text "Programmatic Use"
+        programmatic_use_header = panel_group.find('h4', text='Programmatic Use')
+        if programmatic_use_header:
+            # Find the first table after this header
+            next_sibling = programmatic_use_header.find_next_sibling()
+            while next_sibling:
+                if next_sibling.name == 'table':
+                    rows_html = [str(row) for row in next_sibling.find_all('tr')]
+                    parameters.append(rows_html)
+                    break
+                next_sibling = next_sibling.find_next_sibling()
     return parameters
 
 def process_block(block_info):
@@ -200,7 +200,7 @@ def fetch_documentation():
     os.makedirs('data', exist_ok=True)
 
     # Save documents to a JSON file in the 'data' directory
-    json_file_path = os.path.join('data', 'simulink_data_test.json')
+    json_file_path = os.path.join('data', 'simulink_data.json')
     with open(json_file_path, 'w') as f:
         json.dump(documents, f, indent=4)
 
