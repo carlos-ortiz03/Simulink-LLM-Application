@@ -295,7 +295,7 @@ def call_chatgpt(m_file_content, error_message):
             {"role": "system", "content": "You are a MATLAB expert."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0.7
+        temperature=0.0
     )
     print("content: ")
     print(response.choices[0].message.content)
@@ -340,6 +340,7 @@ def parse_value(value):
 def simulink(model_name: str, blocks: list, lines: list):
     success = False
     attempt = 0
+    scope_blocks = []
 
     while not success and attempt < 5:
         try:
@@ -360,6 +361,10 @@ def simulink(model_name: str, blocks: list, lines: list):
                     elif block_type == 'Outport':
                         block_location = 'simulink/Sinks/Out1'
                         print("Outport block detected.")
+                    elif block_type == 'Scope':
+                        block_location = 'simulink/Sinks/Scope'
+                        scope_blocks.append(block["name"])
+                        print("Scope block detected.")
                     else:
                         block_location = block["location"][0].lower() + block["location"][1:] + "/" + block["type"]
                     
@@ -389,8 +394,15 @@ def simulink(model_name: str, blocks: list, lines: list):
                     m_file_content += f"add_line('{model_name}', '{source}', '{target}');\n"
                     print(f"Added line from {source} to {target}")
 
+                for scope in scope_blocks:
+                    m_file_content += f"open_system('{model_name}/{scope}');\n"
+                    m_file_content += f"set_param('{model_name}/{scope}', 'OpenAtSimulationStart', 'on');\n"
+
                 m_file_content += f"save_system('{model_name}');\n"
                 m_file_content += f"open_system('{model_name}');\n"
+                if scope_blocks:
+                    m_file_content += f"set_param('{model_name}', 'SimulationCommand', 'start');\n"
+
                 m_file.write(m_file_content)
                 print(f"\nGenerated MATLAB script ({model_name}.m):\n{m_file_content}")
 

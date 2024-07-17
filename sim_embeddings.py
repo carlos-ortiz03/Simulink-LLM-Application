@@ -2,7 +2,7 @@ import os
 import json
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 
 EMBEDDING_DIR = "data/sim_embeddings"
 
@@ -14,18 +14,22 @@ def get_embed_fn_and_db():
     if not os.path.exists(EMBEDDING_DIR):
         os.makedirs(EMBEDDING_DIR)
         # Load JSON data
-        with open('data/simulink_data.json', 'r') as file:
+        with open('data/simulink_data_test2.json', 'r') as file:
             data = json.load(file)
         
         # Prepare documents
         delimiter = "|||"
         documents = []
         for record in data:
-            content = f"{record.get('block_name', '')} {record.get('description', '')}"
+            content = f"block name: {record.get('block_name', '')}\nblock description: {record.get('description', '')}"
+            parameters = delimiter.join(
+                [" || ".join(f"{key}: {param[key]}" for key in ['Parameter', 'Type', 'Values', 'Default'] if key in param) for param in record.get("parameters", [])]
+            )
             metadata = {
-                "block_name": record.get("block_name"),
+                "block_type": record.get("block_name", ""),  # Store block_name as block_type
+                "description": record.get("description", ""),
                 "libraries": delimiter.join(record.get("libraries", [])),  # Convert list to delimited string
-                "parameters": delimiter.join(["|||".join(param) for param in record.get("parameters", [])])  # Convert nested list to delimited string
+                "parameters": parameters  # Convert parameters to a delimited string
             }
             documents.append(Document(page_content=content, metadata=metadata))
 

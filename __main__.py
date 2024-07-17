@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 import json
+import pickle
+import copy
 load_dotenv()
 
 import functions as f
@@ -88,37 +90,179 @@ def generate_new_json(chain: Chain, data:str) -> Chain:
 
     return chain
 
+
+
 def check(context, currJson) -> str:
+    # Ensure context is a list of dictionaries
+    context = context[0]
+
+    # Extract description from the context
+    description = context["description"]
+    
+    extracted_details = ""
+    if description:
+        validation_response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Extract the key validation points for parameters from the following block description."
+                },
+                {
+                    "role": "user",
+                    "content": description
+                }
+            ]
+        )
+        
+        extracted_details = validation_response.choices[0].message.content
+    
+    # Replace the description in the context with the extracted details
+    updated_context = copy.deepcopy(context)
+    updated_context['description'] = extracted_details
+
+    # Check block type
+    block_type = updated_context["block_type"]
+
+    # Preserve parameters for Inport and Outport block types
+    if block_type in ['Inport', 'Outport']:
+        print("Preserving parameters for Inport and Outport block types")
+        parameters = currJson.get('parameters', [])
+    else:
+        parameters = []
+
+    # Adjust the context to include preserved parameters if needed
+    if parameters:
+        updated_context['parameters'] = parameters
+
+    # Prepare the messages for the API call
+    # messages = [
+    #     {
+    #         "role": "assistant",
+    #         "content": "context:\n" + json.dumps(updated_context, indent=4) + "\n\n" + "currjson:\n" + json.dumps(currJson, indent=4),
+    #     },
+    #     {
+    #         "role": "system",
+    #         "content": """Given the most recent `context` variable and `currJson` data, generate a new JSON object based on the `context`. Ensure the following structure:
+    #         {
+    #             "type": "String of the block type found in the `context` in the block_type section",
+    #             "name": "String of the block name found in the `currJson` data. Make sure to only reference `currJson` and not `context`",
+    #             "location": "String of the block location found in the `context` in the libraries section",
+    #             "parameters": [
+    #                 {
+    #                     // Replace `param_name` with the `Parameter` value for that specific parameter specified in the `parameters` key of the `context`.
+    #                     // Replace `param_value` with the appropriate value based on the following rules:
+    #                     // 1. Use the value from `currJson` if it matches the conditions specified in the `description` and any type requirements and possible values specified for that specific parameter in the `parameters` key.
+    #                     // 2. If the value from `currJson` does not match these conditions, try to determine the best value using the available information like possible values, type, and description.
+    #                     // 3. If no appropriate value can be determined, use the default value specified for that specific parameter in the `parameters` key of the `context`, if available.
+    #                     // 4. If no default value is specified and no appropriate value can be determined, use your best judgment given all available information.
+    #                     "param_name": "param_value" // `param_name` and `param_value` are placeholders. Replace them with the actual parameter name and value.
+    #                 },
+    #                 ... (add more parameters if needed)
+    #             ] 
+    #         }
+            
+    #         Important guidelines:
+    #         1. Ensure that the block name is sourced strictly from `currJson`.
+    #         2. The block type and location should be derived from the `context`.
+    #         3. Only include parameters that are specified in the `context`. If `currJson` includes additional parameters not found in the `context`, exclude them.
+    #         4. If the parameters in `currJson` make sense and abide by these guidelines, keep them. Ensure they are relevant and valid according to the `context`.
+    #         5. Validate the parameters to ensure they make sense given the block type and `context`:
+    #             a. If the `context` specifies numeric values for certain parameters, ensure the values are appropriately numeric and relevant.
+    #             b. Look at the `context` `description` for validating parameters if relevant. This information will not always be available, but if it is, use it to validate the parameters' values.
+    #             c. Ensure parameters such as numerator and denominator values, among others, are sensible and functional within the given context. For example, a time domain realization of a transfer function for block 'BandpassFilterModel/BandpassFilter' should validate the values of 'Numerator' and 'Denominator' parameters.
+    #             d. This validation is especially important when the blocks have parameters that must be certain values to work correctly. Please take your time to ensure the values are correct.
+    #         6. **Parameters can only have values if they are specified as key-value pairs in the `context`.** If the `context` does not have parameter key-value pairs, there should be no parameters, regardless of what the description says.
+    #         7. The description should be used only for conceptual guidance and not as key-value pairs for the parameters.
+    #         8. The generated code should not expect any further user input or external variables. For example, `set_param('CruiseControlSystem/Constant1', 'Value', 'desired_speed');` is incorrect because `desired_speed` is an external variable.
+    #         9. When constructing matrices or lists in MATLAB/Simulink, ensure that brackets are used correctly and that syntax errors are avoided. For example, use square brackets for lists: `set_param('CruiseControlSystem/Scope1', 'Bilevel Measurements', ['Confirm measurement capabilities for transitions, overshoots, undershoots, and cycles.', 'Verify that a Simscape™ or DSP System Toolbox license is available to enable Peak Finder, Bilevel Measurements, and Signal Statistics features.']);`
+    #         """
+    #     },
+    #     {
+    #         "role": "user",
+    #         "content": "Could you generate for me a new JSON?",
+    #     }
+    # ]
+
+    # messages = [
+    #     {
+    #         "role": "assistant",
+    #         "content": "context:\n" + json.dumps(updated_context, indent=4) + "\n\n" + "currjson:\n" + json.dumps(currJson, indent=4),
+    #     },
+    #     {
+    #         "role": "user",
+    #         "content": """Given the most recent `context` variable and `currJson` data, generate a new JSON object based on the `context`. Ensure the following structure:
+    #         {
+    #             "type": "String of the block type found in the `context` in the `block_type` section",
+    #             "name": "String of the block name found in the `currJson` data. Make sure to only reference `currJson` and not `context`",
+    #             "location": "String of the block location found in the `context` in the libraries section",
+    #             "parameters": [
+    #                 {
+    #                     "param_name": "param_value"  // `param_name` and `param_value` are placeholders. Replace them with the actual parameter name and value.
+    #                 },
+    #                 // Add as many parameters as needed
+    #             ] 
+    #         }
+            
+    #         Important guidelines:
+    #         1. Ensure block names are sourced strictly from `currJson`. Derive block type and location strictly from the `context`.
+    #         2. **Do not include all parameters from the `context`. Include only parameters specified in `currJson` or, if a parameter from `currJson` does not exist in the `context`, include only the least number of necessary parameters from the `context` that might achieve the same goal.** This applies to all blocks.
+    #             - For example, if the `currJson` specifies PID parameters (P, I, D), only include these and ignore other parameters available in the context that are not necessary for the specified goal.
+    #         3. **Values from `currJson`, if valid, are the most preferred.** Validate that parameters make sense for the block type. Use the other key-value pairs (`type`, `values`, and `default`) in the specific parameter as well as the `description` in the `context` for conceptual guidance.
+    #         4. Avoid syntax errors when constructing matrices or lists in MATLAB/Simulink. Ensure correct use of brackets.
+    #         5. Ensure that the generated code does not expect any further user input or external variables. All parameters must be filled in appropriately within the generated MATLAB code.
+    #         6. `param_name` and `param_value` are placeholders and must be replaced with actual valid parameter names and values. They should never appear in the generated `.m` file.
+    #         7. It is okay to have no parameters if the context does not contain any.
+    #         """
+    #     }
+    # ]
+
+    print(currJson)
+
+
+    messages = [
+        {
+            "role": "assistant",
+            "content": "context:\n" + json.dumps(updated_context, indent=4) + "\n\n" + "currjson:\n" + json.dumps(currJson, indent=4),
+        },
+        {
+            "role": "user",
+            "content": """Given the most recent `context` variable and `currJson` data, generate a new JSON object based on the `context`. Ensure the following structure:
+            {
+                "type": "String of the block type found in the `context` in the `block_type` section",
+                "name": "String of the block name found in the `currJson` data. Make sure to only reference `currJson` and not `context`",
+                "location": "String of the block location found in the `context` in the libraries section",
+                "parameters": [
+                    {
+                        "param_name": "param_value"  // `param_name` and `param_value` are placeholders. Replace them with the actual parameter name and value.
+                    },
+                    // Add as many parameters as needed
+                ] 
+            }
+            
+            Important guidelines:
+            1. Ensure block names are sourced strictly from `currJson`. Derive block type and location strictly from the `context`.
+            2. **Include only the parameters specified in `currJson` that exist in the `context`.** Do not include additional parameters from the `context`.
+            3. **Values from `currJson`, if valid, are the most preferred.** Validate that parameters make sense for the block type. Use the other key-value pairs (`type`, `values`, and `default`) in the specific parameter as well as the `description` in the `context` for conceptual guidance.
+            4. Avoid syntax errors when constructing matrices or lists in MATLAB/Simulink. Ensure correct use of brackets.
+            5. Ensure that the generated code does not expect any further user input or external variables. All parameters must be filled in appropriately within the generated MATLAB code.
+            6. `param_name` and `param_value` are placeholders and must be replaced with actual valid parameter names and values. They should never appear in the generated `.m` file.
+            7. It is okay to have no parameters if the context does not contain any.
+            """
+        }
+    ]
+
+
+    # Make the API call
     json_response = openai.chat.completions.create(
         model="gpt-4o",
-        messages=[
-            {
-                "role": "assistant",
-                "content": context + "\n" + json.dumps(currJson),
-            },
-            {
-                "role": "system",
-                "content": """Given the most recent context and JSON data, generate a new JSON object based on the context. Ensure the following structure:
-                {
-                    "type": "String of the block type found in the context in the block_name section",
-                    "name": "String of the block name found in the currJson data. Make sure to only reference 'currJson' and not 'context'",
-                    "location": "String of the block location found in the `context` in the libraries section",
-                    "parameters": [
-                        {
-                            "param_name": "param_value"
-                        },
-                        ...
-                    ]
-                }
-                Ensure all parameters are provided as a list of dictionaries, even if there is only one parameter. The parameter values should be correctly formatted according to the given context. If currJson contains a parameter that is not in the context, exclude it and adhere strictly to the parameters defined by the context. Additionally, make sure to check the values provided for these parameters and ensure they are valid."""
-            },
-            {
-                "role": "user",
-                "content": "Could you generate for me a new JSON?",
-            }
-        ],
-        response_format={ "type": "json_object" },
+        messages=messages,
+        response_format={"type": "json_object"},
     )
+
+    print(json_response.choices[0].message.content)
+    input("Press Enter to continue...")
+
     return json_response.choices[0].message.content
 
 # def check(chain: Chain) -> tuple[Chain, str]:
@@ -190,8 +334,13 @@ def prompt_step(chain: Chain) -> Chain:
         f.simulink(name, blocks, lines)
     return chain
 
+# Load block names from pickle file
+pickle_file_path = './data/block_types.pkl'
+with open(pickle_file_path, 'rb') as file:
+    block_types = pickle.load(file)
 
-chain = Chain()
+# Initialize Chain with block names
+chain = Chain(block_types=block_types)
 if True:
     try:
         chain = prompt_step(chain)

@@ -7,17 +7,15 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import time
 import json
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
-# in parameters, have parameter descriptions as well
-
+# Clean the extracted text
 def clean_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     text = text.replace(' / ', '/').replace(' /', '/').replace('/ ', '/')
     return text
 
+# Create a headless browser
 def create_headless_browser():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -25,6 +23,7 @@ def create_headless_browser():
     chrome_options.add_argument("--disable-dev-shm-usage")
     return webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
 
+# Extract block information from a URL
 def extract_block_info(block_url):
     driver = create_headless_browser()
     try:
@@ -57,53 +56,90 @@ def extract_block_info(block_url):
                 parameters_section = ref_sect
                 break
 
-        parameters_html_array = []
+        parameters = []
         if parameters_section:
             # Extract parameters from the nested panel groups within the Parameters section
             outer_panel_group = parameters_section.find('div', class_='panel-group')
             if outer_panel_group:
-                parameters_html_array = extract_parameters(outer_panel_group)
+                parameters = extract_parameters(outer_panel_group)
 
     finally:
         driver.quit()
     
-    return block_url, libraries, description_text, parameters_html_array
+    
+    return block_url, libraries, description_text, parameters
 
+# Extract parameters from panel groups
 def extract_parameters(panel_group):
+    # Find all panel groups at any level
+    all_panel_groups = panel_group.find_all('div', class_='panel-group', recursive=True)
+    
+    # Filter out panel groups that have child panel groups
+    lowest_level_panel_groups = [pg for pg in all_panel_groups if not pg.find('div', class_='panel-group', recursive=True)]
+    
     parameters = []
-    child_panel_groups = panel_group.find_all('div', class_='panel-group', recursive=False)
-    if child_panel_groups:
-        for child in child_panel_groups:
-            parameters.extend(extract_parameters(child))
-    else:
+
+    # Process each lowest level panel group
+    for pg in lowest_level_panel_groups:
         # Look for the h4 tag with text "Programmatic Use"
-        programmatic_use_header = panel_group.find('h4', text='Programmatic Use')
+        programmatic_use_header = pg.find('h4', text='Programmatic Use')
         if programmatic_use_header:
             # Find the first table after this header
             next_sibling = programmatic_use_header.find_next_sibling()
             while next_sibling:
                 if next_sibling.name == 'table':
-                    rows_html = [str(row) for row in next_sibling.find_all('tr')]
-                    parameters.append(rows_html)
+                    rows = next_sibling.find_all('tr')
+                    parameters.extend(clean_parameters(rows))
                     break
                 next_sibling = next_sibling.find_next_sibling()
+
     return parameters
 
+def clean_parameters(rows):
+    cleaned_parameters = []
+    current_parameter = {}
+
+    for row in rows:
+        strong = row.find('strong')
+        if strong:
+            key = clean_text(strong.get_text().replace(':', '').strip())  # Clean the key and remove colon
+            value = row.get_text().replace(strong.get_text(), "").strip()  # Get the value text without the key
+
+            # Clean up the value string
+            value = re.sub(r'\s+', ' ', value)
+            value = value.replace('\n', '').replace('\t', '').replace('\"', "'")
+
+            if key.lower().startswith("block parameter") or key.lower().startswith("parameter"):
+                key = "Parameter"  # Standardize the key to "Parameter"
+                if current_parameter:
+                    cleaned_parameters.append(current_parameter)
+                current_parameter = {key: value}
+            else:
+                current_parameter[key] = value
+    
+    if current_parameter:
+        cleaned_parameters.append(current_parameter)
+
+    return cleaned_parameters
+
+
+# Process block information
 def process_block(block_info):
     block_name, block_url = block_info
-    _, libraries, description, parameters_html_array = extract_block_info(block_url)
+    _, libraries, description, parameters = extract_block_info(block_url)
     
     document = {
         "block_name": block_name,
         "libraries": libraries,
         "description": description,
-        "parameters": parameters_html_array,
+        "parameters": parameters,
         "source": block_url
     }
     
     print(f"Completed processing block: {block_name}")  # Debug statement to print the block name
     return document
 
+# Fetch documentation
 def fetch_documentation():
     driver = create_headless_browser()
 
@@ -180,29 +216,27 @@ def fetch_documentation():
                                 block_info = (block_name, block_url)
                                 
                                 block_urls.append(block_info)
-        else:
-            print(f"Element with id 'reflist_content' not found in section {nav_link.text.strip()}.")
+                                
 
-    driver.quit()
-
-    # Use ThreadPoolExecutor for multithreading
+    # Use ThreadPoolExecutor for concurrent processing
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(process_block, block_info): block_info for block_info in block_urls}
-        for future in as_completed(futures):
+        future_to_block = {executor.submit(process_block, block_info): block_info for block_info in block_urls}
+        for future in as_completed(future_to_block):
+            block_info = future_to_block[future]
             try:
                 document = future.result()
                 documents.append(document)
-            except Exception as e:
-                block_info = futures[future]
-                print(f"Error processing block {block_info[0]}: {e}")
+            except Exception as exc:
+                print(f"{block_info} generated an exception: {exc}")
 
-    # Ensure the 'data' directory exists
-    os.makedirs('data', exist_ok=True)
-
-    # Save documents to a JSON file in the 'data' directory
-    json_file_path = os.path.join('data', 'simulink_data.json')
-    with open(json_file_path, 'w') as f:
+    # Save the collected documents to a JSON file
+    output_file = 'data/simulink_data_test2.json'
+    with open(output_file, 'w') as f:
         json.dump(documents, f, indent=4)
 
-if __name__ == "__main__":
-    fetch_documentation()
+    print(f"Completed processing {len(documents)} blocks. Results saved to {output_file}")
+
+    driver.quit()
+
+# Run the fetch documentation function
+fetch_documentation()
