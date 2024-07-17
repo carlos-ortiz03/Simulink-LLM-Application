@@ -401,6 +401,7 @@ def simulink(model_name: str, blocks: list, lines: list):
                 m_file_content += f"save_system('{model_name}');\n"
                 m_file_content += f"open_system('{model_name}');\n"
                 if scope_blocks:
+                    m_file_content += f"set_param('{model_name}', 'StopTime', '300');\n"
                     m_file_content += f"set_param('{model_name}', 'SimulationCommand', 'start');\n"
 
                 m_file.write(m_file_content)

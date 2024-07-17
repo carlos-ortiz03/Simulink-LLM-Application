@@ -241,16 +241,18 @@ def check(context, currJson) -> str:
             }
             
             Important guidelines:
-            1. Ensure block names are sourced strictly from `currJson`. Derive block type and location strictly from the `context`.
+            1. Ensure block `name` is sourced strictly from `currJson`. Derive block `type` and `location` strictly from the `context`.
             2. **Include only the parameters specified in `currJson` that exist in the `context`.** Do not include additional parameters from the `context`.
-            3. **Values from `currJson`, if valid, are the most preferred.** Validate that parameters make sense for the block type. Use the other key-value pairs (`type`, `values`, and `default`) in the specific parameter as well as the `description` in the `context` for conceptual guidance.
+            3. **Values from `currJson`, if valid, are the most preferred.** Validate that parameters make sense for the block type. Use the other key-value pairs (`type`, `values`, and `default`) in the specific parameter as well as the `description` in the `context` for conceptual guidance when determining if it is valid, and for providing valid parameters.
             4. Avoid syntax errors when constructing matrices or lists in MATLAB/Simulink. Ensure correct use of brackets.
             5. Ensure that the generated code does not expect any further user input or external variables. All parameters must be filled in appropriately within the generated MATLAB code.
             6. `param_name` and `param_value` are placeholders and must be replaced with actual valid parameter names and values. They should never appear in the generated `.m` file.
-            7. It is okay to have no parameters if the context does not contain any.
+            7. **It is okay to have no parameters if the `context` does not contain any `parameters` (also known as the list of lists is empty).**
+            8. **Validate that parameter names and values are correct and applicable for the block type. Use the context and provided parameters for guidance.**
             """
         }
     ]
+
 
 
     # Make the API call
@@ -261,7 +263,6 @@ def check(context, currJson) -> str:
     )
 
     print(json_response.choices[0].message.content)
-    input("Press Enter to continue...")
 
     return json_response.choices[0].message.content
 

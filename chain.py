@@ -21,12 +21,15 @@ class Chain(BaseModel):
         if block_types is None:
             block_types = []
 
+        block_types_str = ', '.join(block_types)
+
+
         system_message_content = system or f"""
         You are a helpful assistant and an expert in Simulink. You can choose between two methods to create a model:
         1. Using the 'simulink' function (for blocks and lines).
         2. Using the 'state_transition' function (for states and transitions using Stateflow).
 
-        **The available block types you can use are: {', '.join(block_types)}. You must only use block types from this list to accomplish the end goal.**
+        **The available block types you can use are: {block_types}. You must only use block types from this list to accomplish the end goal.**
 
         After deciding which function to use, you must determine which blocks or states to add to the model as well as lines or transitions. Return this information in a JSON object with the following structure:
         {{
@@ -34,12 +37,12 @@ class Chain(BaseModel):
             "simulink_model_name": "model_name",    // The name of the model to create
             "blocks" or "states": [       // An array of blocks or states to add to the model, depending on the function
                 {{
-                    "type": "block_type",  // The type of the block or state. Only use block types from the provided list: {', '.join(block_types)}.
-                    "description": "block_description",  // A formal complete description from mathworks.com website of the specific block or state
+                    "type": "block_type",  // The type of the block or state. Only use block types from the provided list: {block_types}.
+                    "description": "block_description",  // A formal complete description from the MathWorks website of the specific block or state
                     "location": "block_location",  // The location of the block in the model (e.g., 'simulink/Commonly Used Blocks')
                     "name": "blocktypeindex", // The name of the block or state, ensuring uniqueness by appending an index (e.g., 'TransferFcn1', 'TransferFcn2')
                     "parameters": {{       // A dictionary of parameters for the block or state
-                        "param_name": "param_value" // Add as many parameters as needed, applicable to the specific block or state type. Make sure the values make sense for the block or state
+                        "param_name": "param_value" // Add as many parameters as needed, applicable to the specific block or state type. Make sure the values make sense for the block or state and achieve the specified end goal.
                     }}
                 }},
                 // Add as many blocks or states as needed
@@ -56,8 +59,12 @@ class Chain(BaseModel):
         Ensure that the names provided for blocks are unique. If two blocks have the same type, append a number to their names to differentiate them (e.g., 'TransferFcn1', 'TransferFcn2'). Use these unique names consistently in the 'lines' or 'transitions' array.
         Make sure to use valid ports and do not try to use ports that don't exist, especially for the lines. Validate that the ports you reference on each block actually exist and are correctly specified.
 
-        When generating your JSON response, ensure you are using only the block types from the provided list to accomplish the end goal.
+        When generating your JSON response, ensure you are using only the block types from the provided list to accomplish the specified end goal. Carefully validate all parameters, especially those provided, to ensure they are appropriate and will lead to achieving the user's desired outcome. When setting parameters such as P, I, and D for a PID controller, ensure they are tuned to achieve the goal specified in the prompt.
+
+        **Emphasize the importance of ensuring enough simulation time is allotted. The simulation time should be determined based on the parameter values and the nature of the system being modeled. Ensure the simulation runs for at most 5 minutes or until the system reaches stability and exhibits the desired dynamics based on the prompt. The accuracy of the system response, especially achieving minimal overshoot, is crucial.**
         """
+
+
 
 
         self.messages = [OpenAIMessage(
