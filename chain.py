@@ -21,8 +21,6 @@ class Chain(BaseModel):
         if block_types is None:
             block_types = []
 
-        block_types_str = ', '.join(block_types)
-
 
         system_message_content = system or f"""
         You are a helpful assistant and an expert in Simulink. You can choose between two methods to create a model:
@@ -89,24 +87,24 @@ class Chain(BaseModel):
         ]
 
     def reload_context(self):
-        self.messages = self.messages[:2] + self.messages[-4:]
+        self.messages = self.messages[:2]
 
-        try:
-            root = '../'
-            model_file = [
-                f for f in os.listdir(root)
-                if f.startswith('llm_')
-            ][0]
-            with open(f'{root}{model_file}', 'r') as f:
-                self.add(OpenAIMessage(
-                    role=OpenAIRole.user,
-                    content=f'Current model definition:\n{f.read()}',
-                    name=None,
-                    function_call=None
-                ))
+        # try:
+        #     root = '../'
+        #     model_file = [
+        #         f for f in os.listdir(root)
+        #         if f.startswith('llm_')
+        #     ][0]
+        #     with open(f'{root}{model_file}', 'r') as f:
+        #         self.add(OpenAIMessage(
+        #             role=OpenAIRole.user,
+        #             content=f'Current model definition:\n{f.read()}',
+        #             name=None,
+        #             function_call=None
+        #         ))
 
-        except FileNotFoundError:
-            pass
+        # except FileNotFoundError:
+        #     pass
 
     def __len__(self) -> int:
         return len(self.messages)

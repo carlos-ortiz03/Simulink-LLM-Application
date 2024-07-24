@@ -62,7 +62,6 @@ def generate_new_json(chain: Chain, data:str) -> Chain:
         content=contexts,
     ))
 
-    print(responses)
     # Add responses to the chain
     chain.add(OpenAIMessage(
         role='assistant',
@@ -217,8 +216,6 @@ def check(context, currJson) -> str:
     #     }
     # ]
 
-    print(currJson)
-
 
     messages = [
         {
@@ -261,8 +258,6 @@ def check(context, currJson) -> str:
         messages=messages,
         response_format={"type": "json_object"},
     )
-
-    print(json_response.choices[0].message.content)
 
     return json_response.choices[0].message.content
 
@@ -310,11 +305,7 @@ def parse_responses(content: str) -> list:
 
 def prompt_step(chain: Chain) -> Chain:
     # chain.print(clear=True)
-    if len(chain) <= 1:
-        chain.add(prompt_user(wrap_in_context=False))
-
-    if len(chain) > 10:
-        chain.reload_context()
+    chain.add(prompt_user(wrap_in_context=False))
 
     response = f.llm(
         chain,
@@ -331,8 +322,10 @@ def prompt_step(chain: Chain) -> Chain:
     responses_content = chain.serialize()[-1]["content"]
     blocks = parse_responses(responses_content)
 
+    prompt = chain.serialize()[1]["content"]
+
     if function_call == "simulink":
-        f.simulink(name, blocks, lines)
+        f.simulink(name, blocks, lines, prompt, chain)
     return chain
 
 # Load block names from pickle file
